@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String
+  avatar        String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  contentChecks ContentCheck[]
+  chatSessions  ChatSession[]
+}
+
+model ContentCheck {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  content   String
+  riskScore Float?
+  summary   String?
+  status    String   @default("pending")
+  result    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  licenses  License[]
+  violations Violation[]
+}
+
+model License {
+  id            String   @id @default(uuid())
+  contentCheckId String
+  type          String
+  description   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  violations    Violation[]
+  contentCheck  ContentCheck @relation(fields: [contentCheckId], references: [id])
+}
+
+model Violation {
+  id            String   @id @default(uuid())
+  contentCheckId String
+  type          String
+  description   String
+  severity      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  licenseId     String
+  license       License  @relation(fields: [licenseId], references: [id])
+  contentCheck  ContentCheck @relation(fields: [contentCheckId], references: [id])
+}
+
+model ChatSession {
+  id        String    @id @default(uuid())
+  userId    String
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id])
+  messages  Message[]
+}
+
+model Message {
+  id        String      @id @default(uuid())
+  content   String
+  role      String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id])
+} 

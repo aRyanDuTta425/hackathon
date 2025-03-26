@@ -1,6 +1,6 @@
 name = "digital-rights-api"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-02-20"
 
 [vars]
 JWT_SECRET = "your-secret-key"
@@ -8,4 +8,4 @@ JWT_SECRET = "your-secret-key"
 [[d1_databases]]
 binding = "DB"
 database_name = "digital-rights-db"
-database_id = "your-database-id" 
+database_id = "" # You'll need to fill this in after creating the database 

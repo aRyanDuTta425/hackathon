@@ -18,6 +18,11 @@
   "devDependencies": {
     "@types/node": "^20.11.24",
     "prettier": "^3.2.5",
-    "typescript": "^5.3.3"
+    "prisma": "^5.10.2",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.1"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.2"
   }
-} 
+}

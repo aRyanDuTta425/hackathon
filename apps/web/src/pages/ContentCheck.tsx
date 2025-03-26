@@ -1,224 +1,136 @@
-import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useToast } from '@/components/ui/use-toast'
-import axios from 'axios'
-
-const formSchema = z.object({
-  type: z.enum(['image', 'article', 'video']),
-  content: z.string().url('Please enter a valid URL'),
-})
-
-type FormValues = z.infer<typeof formSchema>
-
-interface CheckResult {
-  id: string
-  riskScore: number
-  summary: string
-  licenses: Array<{
-    type: string
-    description: string
-  }>
-  violations: Array<{
-    type: string
-    description: string
-    severity: string
-  }>
-}
+import { useAuth } from '@/contexts/AuthContext'
+import { api } from '@/api/config'
 
 export default function ContentCheck() {
-  const [result, setResult] = useState<CheckResult | null>(null)
-  const { toast } = useToast()
+  const [content, setContent] = useState('')
+  const [type, setType] = useState('text')
   const [isLoading, setIsLoading] = useState(false)
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const [result, setResult] = useState(null)
+  const { user, isAuthenticated } = useAuth()
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      type: 'image',
-      content: '',
-    },
-  })
-
-  const checkMutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const response = await axios.post('/api/content-checks', values)
-      return response.data
-    },
-    onSuccess: (data) => {
-      setResult(data)
+  useEffect(() => {
+    if (!isAuthenticated) {
       toast({
-        title: 'Analysis Complete',
-        description: 'Your content has been analyzed successfully.',
-      })
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to analyze content. Please try again.',
+        title: 'Authentication Required',
+        description: 'Please log in to submit content for checking.',
         variant: 'destructive',
       })
-    },
-  })
+      navigate('/login')
+    }
+  }, [isAuthenticated, navigate, toast])
 
-  const onSubmit = async (values: FormValues) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     setIsLoading(true)
+
     try {
-      await checkMutation.mutateAsync(values)
+      if (!user) {
+        throw new Error('You must be logged in to submit content')
+      }
+
+      console.log('Submitting content check:', { content, type, userId: user.id })
+      const response = await api.post('/api/content-checks', {
+        content,
+        type,
+      })
+      console.log('Content check response:', response.data)
+
+      setResult(response.data)
+      toast({
+        title: 'Success',
+        description: 'Content check has been initiated successfully.',
+      })
+
+      // Wait for 2 seconds before navigating to show the result
+      setTimeout(() => {
+        navigate('/dashboard')
+      }, 2000)
+    } catch (error: any) {
+      console.error('Content check error:', error)
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || error.message || 'Failed to create content check. Please try again.',
+        variant: 'destructive',
+      })
     } finally {
       setIsLoading(false)
     }
   }
 
+  if (!isAuthenticated) {
+    return null
+  }
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Content Compliance Check</h1>
-        <p className="text-muted-foreground">
-          Upload your content for AI-powered copyright and licensing analysis
-        </p>
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mx-auto max-w-2xl">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold tracking-tight">Content Check</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Submit your content for copyright and licensing analysis
+          </p>
+        </div>
 
-      <div className="grid gap-8 md:grid-cols-2">
-        {/* Upload Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload Content</CardTitle>
-            <CardDescription>
-              Enter the URL of your content to analyze
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Content Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select content type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="image">Image</SelectItem>
-                          <SelectItem value="article">Article</SelectItem>
-                          <SelectItem value="video">Video</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Content Type
+            </label>
+            <select
+              id="type"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-700"
+            >
+              <option value="text">Text</option>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+            </select>
+          </div>
 
-                <FormField
-                  control={form.control}
-                  name="content"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Content URL</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="url"
-                          placeholder="https://example.com/content"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          <div>
+            <label htmlFor="content" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Content to Check
+            </label>
+            <textarea
+              id="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-700"
+              rows={10}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            {isLoading ? 'Checking...' : 'Check Content'}
+          </button>
+        </form>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Analyzing...' : 'Analyze Content'}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-
-        {/* Results */}
         {result && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Analysis Results</CardTitle>
-              <CardDescription>
-                Copyright and licensing analysis
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h3 className="font-medium mb-2">Risk Score</h3>
-                <div className="text-2xl font-bold text-primary">
-                  {result.riskScore}%
-                </div>
+          <div className="mt-8">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Check Result</h2>
+            <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-md">
+              <div className="space-y-2">
+                <p><strong>Status:</strong> Success</p>
+                <p><strong>Content Type:</strong> {result.type}</p>
+                <p><strong>Content Length:</strong> {result.content.length} characters</p>
+                <p><strong>Check ID:</strong> {result.id}</p>
+                <p><strong>Created At:</strong> {new Date(result.createdAt).toLocaleString()}</p>
               </div>
-
-              <div>
-                <h3 className="font-medium mb-2">Summary</h3>
-                <p className="text-muted-foreground">{result.summary}</p>
-              </div>
-
-              <div>
-                <h3 className="font-medium mb-2">Licenses</h3>
-                <ul className="space-y-2">
-                  {result.licenses.map((license, index) => (
-                    <li key={index} className="text-sm">
-                      <span className="font-medium">{license.type}:</span>{' '}
-                      {license.description}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {result.violations.length > 0 && (
-                <div>
-                  <h3 className="font-medium mb-2">Potential Violations</h3>
-                  <ul className="space-y-2">
-                    {result.violations.map((violation, index) => (
-                      <li
-                        key={index}
-                        className={`text-sm ${
-                          violation.severity === 'high'
-                            ? 'text-destructive'
-                            : violation.severity === 'medium'
-                            ? 'text-yellow-500'
-                            : 'text-green-500'
-                        }`}
-                      >
-                        <span className="font-medium">{violation.type}:</span>{' '}
-                        {violation.description}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              Redirecting to dashboard...
+            </p>
+          </div>
         )}
       </div>
     </div>

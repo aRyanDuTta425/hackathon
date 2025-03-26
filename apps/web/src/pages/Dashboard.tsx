@@ -1,142 +1,127 @@
-import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { FileText, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
-import axios from 'axios'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useToast } from '@/components/ui/use-toast'
+import { useAuth } from '@/contexts/AuthContext'
+import { api } from '@/api/config'
 
 interface ContentCheck {
   id: string
-  type: string
   content: string
-  riskScore: number
+  type: string
   createdAt: string
-}
-
-interface DashboardStats {
-  totalChecks: number
-  highRiskChecks: number
-  lowRiskChecks: number
-  pendingChecks: number
+  status: string
+  riskScore: number | null
 }
 
 export default function Dashboard() {
-  const { data: recentChecks } = useQuery<ContentCheck[]>({
-    queryKey: ['recentChecks'],
-    queryFn: async () => {
-      const response = await axios.get('/api/content-checks/recent')
-      return response.data
-    },
-  })
+  const [contentChecks, setContentChecks] = useState<ContentCheck[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const { user, isAuthenticated } = useAuth()
 
-  const { data: stats } = useQuery<DashboardStats>({
-    queryKey: ['dashboardStats'],
-    queryFn: async () => {
-      const response = await axios.get('/api/dashboard/stats')
-      return response.data
-    },
-  })
+  useEffect(() => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please log in to view your dashboard.',
+        variant: 'destructive',
+      })
+      navigate('/login')
+      return
+    }
 
-  const statCards = [
-    {
-      title: 'Total Checks',
-      value: stats?.totalChecks || 0,
-      icon: <FileText className="h-4 w-4" />,
-      description: 'Total content checks performed',
-    },
-    {
-      title: 'High Risk',
-      value: stats?.highRiskChecks || 0,
-      icon: <AlertTriangle className="h-4 w-4" />,
-      description: 'Content with high risk score',
-    },
-    {
-      title: 'Low Risk',
-      value: stats?.lowRiskChecks || 0,
-      icon: <CheckCircle className="h-4 w-4" />,
-      description: 'Content with low risk score',
-    },
-    {
-      title: 'Pending',
-      value: stats?.pendingChecks || 0,
-      icon: <Clock className="h-4 w-4" />,
-      description: 'Pending content checks',
-    },
-  ]
+    fetchContentChecks()
+  }, [isAuthenticated, navigate, toast])
+
+  const fetchContentChecks = async () => {
+    try {
+      const response = await api.get('/api/content-checks')
+      setContentChecks(response.data)
+    } catch (error: any) {
+      console.error('Failed to fetch content checks:', error)
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to fetch content checks',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <Link to="/check">
-          <Button>New Content Check</Button>
-        </Link>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <button
+          onClick={() => navigate('/content-check')}
+          className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+        >
+          New Content Check
+        </button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {stat.title}
-              </CardTitle>
-              {stat.icon}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Recent Checks */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Content Checks</CardTitle>
-          <CardDescription>
-            Your latest content compliance checks
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentChecks?.map((check) => (
-              <div
-                key={check.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
-              >
-                <div className="space-y-1">
-                  <p className="font-medium">
-                    {check.type.charAt(0).toUpperCase() + check.type.slice(1)}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(check.createdAt).toLocaleDateString()}
+      {isLoading ? (
+        <div className="text-center py-8">
+          <p className="text-gray-600">Loading content checks...</p>
+        </div>
+      ) : contentChecks.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-600">No content checks found.</p>
+          <button
+            onClick={() => navigate('/content-check')}
+            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Submit Your First Check
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {contentChecks.map((check) => (
+            <div
+              key={check.id}
+              className="bg-white dark:bg-gray-800 shadow rounded-lg p-6"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    Content Check #{check.id.slice(0, 8)}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {new Date(check.createdAt).toLocaleString()}
                   </p>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-sm">
-                    Risk Score: {check.riskScore}%
-                  </div>
-                  <Link to={`/check/${check.id}`}>
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
-                  </Link>
-                </div>
+                <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-800">
+                  {check.type}
+                </span>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <div className="mt-4">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Content: {check.content.slice(0, 100)}...
+                </p>
+                {check.riskScore !== null && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Risk Score: {check.riskScore}
+                    </p>
+                    <div className="mt-1 w-full bg-gray-200 rounded-full h-2.5">
+                      <div
+                        className="bg-primary-600 h-2.5 rounded-full"
+                        style={{ width: `${check.riskScore}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 } 

@@ -1,17 +1,22 @@
+/// <reference types="@cloudflare/workers-types" />
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { jwt } from 'hono/jwt'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './lib/db'
 import { z } from 'zod'
 
-const app = new Hono()
+interface Env {
+  DB: D1Database
+  JWT_SECRET: string
+}
+
+const app = new Hono<{ Bindings: Env }>()
 
 // Middleware
 app.use('*', cors())
-app.use('/api/*', jwt({ secret: process.env.JWT_SECRET || 'your-secret-key' }))
-
-// Database
-const prisma = new PrismaClient()
+app.use('/api/*', jwt({
+  secret: 'your-secret-key'
+}))
 
 // Auth Routes
 app.post('/api/auth/register', async (c) => {
@@ -28,12 +33,12 @@ app.post('/api/auth/register', async (c) => {
     const user = await prisma.user.create({
       data: {
         email,
-        password: await hashPassword(password),
+        password,
         name,
       },
     })
 
-    const token = generateToken(user.id)
+    const token = 'mock-token'
 
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name } })
   } catch (error) {
@@ -55,11 +60,11 @@ app.post('/api/auth/login', async (c) => {
       where: { email },
     })
 
-    if (!user || !(await verifyPassword(password, user.password))) {
+    if (!user || user.password !== password) {
       return c.json({ error: 'Invalid credentials' }, 401)
     }
 
-    const token = generateToken(user.id)
+    const token = 'mock-token'
 
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name } })
   } catch (error) {
@@ -210,21 +215,5 @@ app.get('/api/dashboard/stats', async (c) => {
     pendingChecks,
   })
 })
-
-// Helper functions
-async function hashPassword(password: string): Promise<string> {
-  // Implement password hashing
-  return password
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  // Implement password verification
-  return password === hash
-}
-
-function generateToken(userId: string): string {
-  // Implement JWT token generation
-  return 'mock-token'
-}
 
 export default app 
